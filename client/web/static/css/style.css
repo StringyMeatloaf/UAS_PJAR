@@ -1,0 +1,28 @@
+body{
+    font-family: "Poppins", sans-serif;
+    background:#f4f6f9;
+}
+
+.card{
+    border-radius:16px;
+}
+
+.form-control{
+    border-radius:10px;
+}
+
+.btn{
+    border-radius:10px;
+}
+
+h1{
+    font-weight:700;
+}
+
+.card{
+    transition:.25s;
+}
+
+.card:hover{
+    transform:translateY(-3px);
+}
