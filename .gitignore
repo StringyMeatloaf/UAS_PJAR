@@ -1,0 +1,11 @@
+# Ignore a specific file
+secret_token.txt
+
+# Ignore a specific folder (add a trailing slash)
+node_modules/
+
+# Ignore all files with a specific extension
+*.log
+*.env
+
+# Comment lines start with a hashtag
