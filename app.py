@@ -92,7 +92,10 @@ def home():
 # =====================================================
 # Run Application
 # =====================================================
+# Di dalam app.py (Windows)
 if __name__ == "__main__":
     app.run(
+        host="0.0.0.0",  # <--- WAJIB DITAMBAHKAN agar bisa diakses oleh VM
+        port=5000,       # Pastikan portnya sesuai (5000)
         debug=True
     )

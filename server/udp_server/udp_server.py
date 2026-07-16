@@ -1,61 +1,79 @@
-# server/udp_server/udp_server.py
 import socket
-import threading
+import os
+import time
+import sys
 
-from shared.constants import SERVER_IP, UDP_PORT, UDP_BUFFER_SIZE
-from shared.protocol import *
-from server.udp_server.handlers import handle_stream, streaming_states
+# Menambahkan root path proyek agar folder 'shared' bisa di-import di VM Linux
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "../../"))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-class UDPServer:
-    def __init__(self):
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.server.bind((SERVER_IP, UDP_PORT))
-        print(f"UDP Server Running on {SERVER_IP}:{UDP_PORT}")
+from shared.constants import UDP_PORT, UDP_PACKET_SIZE, UPLOAD_FOLDER
+from shared.protocol import ENCODING
 
-    def handle_client(self, data, addr):
-        try:
-            message = data.decode(ENCODING)
-            parts = message.split("|")
-            command = parts[0]
-            filename = parts[1] if len(parts) > 1 else None
+HOST = "0.0.0.0"  # Mendengarkan koneksi dari luar VM (Windows)
+PORT = UDP_PORT   # Menggunakan port dari constants (5002)
 
-            print(f"[CLIENT COMMAND] {command} dari {addr}")
+server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# Memperbesar buffer sistem operasi agar tidak ada paket loss di network
+server.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+server.bind((HOST, PORT))
 
-            if command == CMD_STREAM:
-                # Jalankan pengiriman video di thread baru (Non-blocking)
-                client_thread = threading.Thread(
-                    target=handle_stream,
-                    args=(self.server, addr, filename)
-                )
-                client_thread.daemon = True  
-                client_thread.start()
-                
-            elif command == "PAUSE":
-                streaming_states[addr] = "PAUSED"
-                print(f"[CONTROL] {addr} status: PAUSED")
-                
-            elif command == "PLAY":
-                streaming_states[addr] = "PLAYING"
-                print(f"[CONTROL] {addr} status: RESUME/PLAYING")
-                
-            elif command == "STOP":
-                streaming_states[addr] = "STOPPED"
-                print(f"[CONTROL] {addr} status: STOPPED")
-                
-            else:
-                self.server.sendto(RESP_UNKNOWN.encode(ENCODING), addr)
-        except Exception as e:
-            print(f"[ERROR] Gagal memproses data dari client {addr}: {e}")
+print(f"UDP Server berjalan di {HOST}:{PORT}")
 
-    def start(self):
-        while True:
-            try:
-                data, addr = self.server.recvfrom(UDP_BUFFER_SIZE)
-                self.handle_client(data, addr)
-            except Exception as e:
-                print(f"[SERVER CRASH PREVENTION] Socket utama error: {e}")
-                continue
+while True:
+    try:
+        # 1. Menerima request nama file dari Flask Client
+        data, address = server.recvfrom(1024)
+        filename = data.decode(ENCODING)
 
-if __name__ == "__main__":
-    server = UDPServer()
-    server.start()
+        # Saring jika ada instruksi kontrol liar dari sisa kode lama
+        if filename in ["PAUSE", "PLAY", "STOP"]:
+            continue
+
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        print(f"\n[REQUEST] Client {address} meminta video: {filename}")
+
+        # 2. Validasi Keberadaan File
+        if not os.path.exists(filepath):
+            server.sendto(b"NOT_FOUND", address)
+            print("[ERROR] File tidak ditemukan.")
+            continue
+
+        # 3. Kirim Ukuran File (Filesize)
+        filesize = os.path.getsize(filepath)
+        server.sendto(str(filesize).encode(ENCODING), address)
+
+        # 4. Menunggu ACK 'READY' dari Flask Client
+        ack, _ = server.recvfrom(1024)
+        if ack != b"READY":
+            print("[CANCEL] Client belum siap. Membatalkan streaming.")
+            continue
+
+        print(f"[STREAMING] Mulai mengirim data biner ke {address}...")
+
+        # 5. Loop Pengiriman Byte Mentah (Raw Byte Chunk Streaming)
+        with open(filepath, "rb") as video:
+            sent = 0
+            while True:
+                chunk = video.read(UDP_PACKET_SIZE) # Menggunakan BUFFER_SIZE 60000
+                if not chunk:
+                    break
+
+                server.sendto(chunk, address)
+                sent += len(chunk)
+
+                percent = (sent / filesize) * 100
+                print(f"\rProgress Pengiriman : {percent:.2f}%", end="")
+
+                # Jeda mikro agar kartu jaringan client tidak kebanjiran paket data
+                time.sleep(0.002)
+
+        # 6. Kirim Sinyal Penutup Video
+        server.sendto(b"END_VIDEO", address)
+        print("\n[SUCCESS] Streaming selesai ditransmisikan.")
+
+    except Exception as e:
+        print(f"\n[SERVER ERROR] Terjadi kendala: {e}")
+        continue

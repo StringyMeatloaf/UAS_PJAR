@@ -3,7 +3,7 @@ secret_token.txt
 
 # Ignore a specific folder (add a trailing slash)
 node_modules/
-
+node_modules/env
 # Ignore all files with a specific extension
 *.log
 *.env

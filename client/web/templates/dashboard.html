@@ -47,16 +47,18 @@ Dashboard
             
             <div class="card shadow-sm mb-4 d-none" id="player-card">
                 <div class="card-header d-flex justify-content-between align-items-center bg-dark text-white">
-                    <h5 class="mb-0" id="playing-title">Streaming: None</h5>
+                    <h5 class="mb-0" id="playing-title">Streaming via UDP Chunks: None</h5>
                     <button type="button" class="btn-close btn-close-white" onclick="closeWebPlayer()" aria-label="Close"></button>
                 </div>
                 <div class="card-body bg-dark text-center py-4 rounded-bottom">
+                    
                     <div class="mx-auto" style="max-width: 720px;">
                         <video id="web-video-player" controls autoplay name="media" class="w-100 rounded bg-black shadow border border-secondary">
                             <source src="" type="video/mp4">
                             Browser Anda tidak mendukung pemutar video HTML5.
                         </video>
                     </div>
+
                 </div>
             </div>
 
@@ -118,7 +120,7 @@ Dashboard
                             <thead>
                                 <tr>
                                     <th>Video File Name</th>
-                                    <th width="200" class="text-center">Action</th>
+                                    <th width="220" class="text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -130,7 +132,7 @@ Dashboard
                                     </td>
                                     <td class="text-center">
                                         <button type="button" onclick="startWebStream('{{ video.filename }}')" class="btn btn-success btn-sm w-100">
-                                            <i class="bi bi-play-btn-fill me-1"></i> Putar Video & Audio
+                                            <i class="bi bi-play-btn-fill me-1"></i> Stream Video & Audio
                                         </button>
                                     </td>
                                 </tr>
@@ -154,34 +156,32 @@ function startWebStream(filename) {
     const playerCard = document.getElementById('player-card');
     const videoPlayer = document.getElementById('web-video-player');
     
-    // 1. Tampilkan card player dengan menghapus class bootstrap 'd-none'
+    // 1. Membuka panel pemutar media utama
     playerCard.classList.remove('d-none');
-    document.getElementById('playing-title').innerText = `Streaming: ${filename}`;
+    document.getElementById('playing-title').innerText = `Streaming via UDP: ${filename}`;
     
-    // 2. Set source URL langsung mengarah ke Flask HTTP Stream Engine
+    // 2. Menghubungkan sumber data langsung ke pipeline endpoint Flask UDP Service
     videoPlayer.src = `/stream/video_feed/${filename}`;
     
-    // 3. Reload komponen media dan mainkan secara otomatis
+    // 3. Muat ulang dan jalankan media stream secara otomatis
     videoPlayer.load();
     videoPlayer.play().catch(function(error) {
-        console.log("Autoplay dicegah oleh browser, membutuhkan interaksi user.", error);
+        console.log("Autoplay ditahan oleh keamanan browser internal.", error);
     });
     
-    // 4. Lakukan scroll halus otomatis agar player langsung fokus di layar
+    // 4. Scroll fokus ke komponen media player secara halus
     playerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function closeWebPlayer() {
     const videoPlayer = document.getElementById('web-video-player');
     
-    // 1. Hentikan pemutaran video
+    // Menghentikan putaran byte stream dan bersihkan memori buffer media browser
     videoPlayer.pause();
-    
-    // 2. Kosongkan source dan lepaskan memory buffer stream dari browser
     videoPlayer.src = "";
     videoPlayer.load();
     
-    // 3. Sembunyikan kembali card player
+    // Menyembunyikan kembali card player
     document.getElementById('player-card').classList.add('d-none');
 }
 </script>
